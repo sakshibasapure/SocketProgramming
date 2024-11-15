@@ -58,36 +58,56 @@ def handle_seller(seller_client):
             
             # Step 1: Create UDP socket for data transfer to Winning Buyer
             udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            print("UDP socket openned for RDT.")
 
             # Read the file to be sent
             with open("tosend.file", "rb") as file:
                 file_data = file.read()
 
+            file_length = len(file_data)
+            print(f"Start sending file.")
+
             # Send file in chunks (Stop-and-Wait RDT)
             chunk_size = 2000
             total_chunks = len(file_data) // chunk_size + (1 if len(file_data) % chunk_size else 0)
 
-            for seq_num in range(total_chunks):
-                start = seq_num * chunk_size
+            # Send initial control message with the total file size
+            control_message = f"0 {file_length}".encode()  # Control message to indicate file size
+            udp_socket.sendto(control_message, (winner_ip, 5001))
+            print(f"Sending control seq 0: start {file_length}")
+
+            # Toggle to the next sequence number for actual data transmission
+            seq_num = 1  # Start data transmission with sequence number 1
+
+            # Start sending file in chunks (Stop-and-Wait RDT)
+            for i in range(total_chunks):
+                start = i * chunk_size
                 end = start + chunk_size
                 chunk = file_data[start:end]
 
                 while True:
-                    # Send chunk with sequence number
+                    # Send chunk with the current sequence number
                     message = f"{seq_num} 1 ".encode() + chunk
                     udp_socket.sendto(message, (winner_ip, 5001))
-                    print(f"Sent chunk {seq_num}")
+                    
+                    # Display message similar to the image you provided
+                    print(f"Sending data seq {seq_num}: {start} / {file_length}")
 
                     # Wait for ACK
                     udp_socket.settimeout(2)
                     try:
                         ack, _ = udp_socket.recvfrom(1024)
                         ack_num = int(ack.decode().split()[0])
+                        
                         if ack_num == seq_num:
-                            print(f"Received ACK for chunk {seq_num}")
+                            print(f"ACK received: {ack_num}")
+                            
+                            # Toggle sequence number between 0 and 1 after receiving ACK
+                            seq_num = 1 - seq_num
                             break
                     except socket.timeout:
                         print(f"Timeout for chunk {seq_num}, resending...")
+
 
             # End-of-transmission
             udp_socket.sendto(b"fin", (winner_ip, 5001))
@@ -168,6 +188,10 @@ def handle_buyer(buyer_client):
 
                         received_data = []
                         expected_seq = 0
+                        received_size = 0  # Initialize received file size counter
+
+                        print("UDP socket opened for RDT.")  
+                        print("Start receiving file.")
 
                         while True:
                             data, addr = udp_socket.recvfrom(2048)
@@ -176,11 +200,37 @@ def handle_buyer(buyer_client):
                                 print("End of transmission received.")
                                 break
 
+                            if len(parts) == 2 and parts[0] == '0':
+                                # First message, receiving control message with file length
+                                file_length = int(parts[1])  # Extract file length from the control message
+                                print(f"Msg received: 0")  # First message received with sequence 0
+                                print(f"Ack sent: 0")  # Send ACK for the first message
+                                udp_socket.sendto(f"0 ack".encode(), addr)
+                                expected_seq = 1
+                                continue
+
                             seq_num = int(parts[0])
+
                             if seq_num == expected_seq:
+                                # Print received message sequence
+                                print(f"Msg received: {seq_num}")
+
+                                # Append data excluding the first 4 bytes (sequence number and space)
                                 received_data.append(data[4:])
+                                received_size += len(data[4:])  # Update received file size
+
+                                # Print ACK sent and current received file size
+                                print(f"Ack sent: {seq_num}")
+                                print(f"Received data seq {seq_num}: {received_size} / {file_length}") 
+
+                                # Acknowledge the received packet
                                 udp_socket.sendto(f"{seq_num} ack".encode(), addr)
-                                expected_seq += 1
+
+                                # Toggle expected sequence between 0 and 1
+                                expected_seq = 1 - expected_seq
+                            else:
+                                # Print unexpected sequence information
+                                print(f"Unexpected sequence number {seq_num}, expected {expected_seq}. Ignored.")
 
                         with open("recved.file", "wb") as file:
                             file.write(b"".join(received_data))
