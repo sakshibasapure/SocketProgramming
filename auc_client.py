@@ -5,13 +5,15 @@
 import socket
 import sys
 
-# Check if enough command-line arguments are provided
-if len(sys.argv) != 3:
-    print("Usage: python auc_client.py <server_ip> <port>")
+# Check if enough command-line arguments are provided (at least 3 arguments)
+if len(sys.argv) < 4 or len(sys.argv) > 5:
+    print("Usage: python auc_client.py <server_ip> <port> <udp_port> [<packet_loss_rate>]")
     sys.exit(1)
 
 SERVER = sys.argv[1]  # Get the server IP from command line
-PORT = int(sys.argv[2])  # Get the port number from command line and convert it to an integer
+PORT = int(sys.argv[2])  # Get the TCP port number from command line and convert it to an integer
+UDP_PORT = int(sys.argv[3])  # Get the UDP port number from command line and convert it to an integer
+PACKET_LOSS_RATE = float(sys.argv[4]) if len(sys.argv) == 5 else 0.0  # Default to 0.0 if not provided
 
 
 def seller_status(seller_client, msg):
@@ -73,7 +75,7 @@ def handle_seller(seller_client):
 
             # Send initial control message with the total file size
             control_message = f"0 {file_length}".encode()  # Control message to indicate file size
-            udp_socket.sendto(control_message, (winner_ip, 5001))
+            udp_socket.sendto(control_message, (winner_ip, UDP_PORT))
             print(f"Sending control seq 0: start {file_length}")
 
             # Toggle to the next sequence number for actual data transmission
@@ -88,7 +90,7 @@ def handle_seller(seller_client):
                 while True:
                     # Send chunk with the current sequence number
                     message = f"{seq_num} 1 ".encode() + chunk
-                    udp_socket.sendto(message, (winner_ip, 5001))
+                    udp_socket.sendto(message, (winner_ip, UDP_PORT))
                     
                     # Display message similar to the image you provided
                     print(f"Sending data seq {seq_num}: {start} / {file_length}")
@@ -110,7 +112,7 @@ def handle_seller(seller_client):
 
 
             # End-of-transmission
-            udp_socket.sendto(b"fin", (winner_ip, 5001))
+            udp_socket.sendto(b"fin", (winner_ip, UDP_PORT))
             print("File transmission completed.")
             udp_socket.close()
             break
@@ -183,7 +185,7 @@ def handle_buyer(buyer_client):
 
                         # Step 1: Create UDP socket to receive file
                         udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                        udp_socket.bind(('127.0.0.1', 5001))
+                        udp_socket.bind((SERVER, UDP_PORT))
                         print("Winning Buyer is ready to receive data...")
 
                         received_data = []
