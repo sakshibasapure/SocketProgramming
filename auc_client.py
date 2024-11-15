@@ -52,6 +52,47 @@ def handle_seller(seller_client):
             # Auction has finished, print the notification message from the server
             print("Auction is finished. Here is the result:")
             print(response)
+
+            winner_ip = seller_client.recv(1024).decode()  # Winning Buyer IP addr
+            print(f"Winner IP address is {winner_ip}")
+            
+            # Step 1: Create UDP socket for data transfer to Winning Buyer
+            udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+            # Read the file to be sent
+            with open("tosend.file", "rb") as file:
+                file_data = file.read()
+
+            # Send file in chunks (Stop-and-Wait RDT)
+            chunk_size = 2000
+            total_chunks = len(file_data) // chunk_size + (1 if len(file_data) % chunk_size else 0)
+
+            for seq_num in range(total_chunks):
+                start = seq_num * chunk_size
+                end = start + chunk_size
+                chunk = file_data[start:end]
+
+                while True:
+                    # Send chunk with sequence number
+                    message = f"{seq_num} 1 ".encode() + chunk
+                    udp_socket.sendto(message, (winner_ip, 5001))
+                    print(f"Sent chunk {seq_num}")
+
+                    # Wait for ACK
+                    udp_socket.settimeout(2)
+                    try:
+                        ack, _ = udp_socket.recvfrom(1024)
+                        ack_num = int(ack.decode().split()[0])
+                        if ack_num == seq_num:
+                            print(f"Received ACK for chunk {seq_num}")
+                            break
+                    except socket.timeout:
+                        print(f"Timeout for chunk {seq_num}, resending...")
+
+            # End-of-transmission
+            udp_socket.sendto(b"fin", (winner_ip, 5001))
+            print("File transmission completed.")
+            udp_socket.close()
             break
 
         # Handle empty response when the server closes the connection
@@ -60,7 +101,7 @@ def handle_seller(seller_client):
             break
             
 
-    seller_client.close()
+    # seller_client.close()
 
 def check_bid_status(buyer_client, msg):
     if msg == "Server: Invalid bid. Please submit a positive integer!":
@@ -115,7 +156,37 @@ def handle_buyer(buyer_client):
                 # Check for the complete auction finished message for both winners and losers
                 if "Auction finished!" in auction_result:
                     print(auction_result)  # Print the auction result message
-                    print("Exiting after auction finished message.")
+                    # print("Exiting after auction finished message.")
+                    if "You won" in auction_result:
+                        seller_ip = buyer_client.recv(1024).decode()
+                        print(f"Seller IP address is {seller_ip}")
+
+                        # Step 1: Create UDP socket to receive file
+                        udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                        udp_socket.bind(('127.0.0.1', 5001))
+                        print("Winning Buyer is ready to receive data...")
+
+                        received_data = []
+                        expected_seq = 0
+
+                        while True:
+                            data, addr = udp_socket.recvfrom(2048)
+                            parts = data.decode(errors='ignore').split()
+                            if parts[0] == "fin":
+                                print("End of transmission received.")
+                                break
+
+                            seq_num = int(parts[0])
+                            if seq_num == expected_seq:
+                                received_data.append(data[4:])
+                                udp_socket.sendto(f"{seq_num} ack".encode(), addr)
+                                expected_seq += 1
+
+                        with open("recved.file", "wb") as file:
+                            file.write(b"".join(received_data))
+                        print("File received and saved as 'recved.file'.")
+                        udp_socket.close()
+                        break
                     break  # Exit the loop after receiving the auction results
 
         elif "Bidding on-going" in role_message:
@@ -124,8 +195,8 @@ def handle_buyer(buyer_client):
             break
 
     # Ensure to close the buyer_client at the end if it wasn't closed earlier
-    if buyer_client:
-        buyer_client.close()
+    # if buyer_client:
+    #     buyer_client.close()
 
 
 if __name__ == "__main__":

@@ -71,7 +71,8 @@ def handle_seller(client, addr):
                     "auction_type": auction_type,
                     "lowest_price": lowest_price,
                     "number_of_bids": number_of_bids,
-                    "item_name": item_name
+                    "item_name": item_name,
+                    "seller_IP": addr[0]
                 })
                 
                 auction_status = 1  # Set auction status to waiting for buyers
@@ -178,12 +179,14 @@ def process_bids(bids_received):
             print(f"Item sold! The highest bid is {highest_bid}. The actual payment is {actual_payment}.")
         
         item_name = seller_data.get("item_name")
+        sellerIP = seller_data.get("seller_IP")
+        winnerIP = winning_buyer.getpeername()[0]
 
         #Notify the seller
-        notify_seller(item_name, actual_payment)
+        notify_seller(item_name, actual_payment,winnerIP)
         # Notify the winning buyer
         item_name = seller_data.get("item_name")
-        notify_winner(winning_buyer, item_name, actual_payment)
+        notify_winner(winning_buyer, item_name, actual_payment,sellerIP)
 
         # Notify losing buyers
         losing_buyers = [buyer for buyer in bids_received.keys() if buyer != winning_buyer]
@@ -195,14 +198,14 @@ def process_bids(bids_received):
 
         # Close seller's connection
         seller_socket = seller_info['client']
-        seller_socket.close()
+        # seller_socket.close()
 
         reset_auction()
 
     else:
         print("Auction failed. The highest bid does not meet the lowest price requirement.")
 
-def notify_winner(winning_buyer, item_name, actual_payment):
+def notify_winner(winning_buyer, item_name, actual_payment,sellerIP):
     # Send notification to the winning buyer
     message = (
         f"Auction finished!\n"
@@ -212,6 +215,7 @@ def notify_winner(winning_buyer, item_name, actual_payment):
         f"Auction is over!"
     )
     winning_buyer.send(message.encode())
+    winning_buyer.send(sellerIP.encode())
 
 def notify_losers(losing_buyers):
     # Notify all losing buyers that the auction has ended and they did not win
@@ -223,7 +227,7 @@ def notify_losers(losing_buyers):
         )
         buyer.sendall(message.encode())
 
-def notify_seller(item_name, highest_bid):
+def notify_seller(item_name, highest_bid,winnerIP):
     # Send notification to the seller with auction details
     message = (
         f"Auction finished!\n"
@@ -236,6 +240,7 @@ def notify_seller(item_name, highest_bid):
     
     # Send the message to the seller using the socket
     seller_socket.sendall(message.encode())
+    seller_socket.send(winnerIP.encode())
 
 # Function to start the bidding thread
 def spawn_bidding_thread():
