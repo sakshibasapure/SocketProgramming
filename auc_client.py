@@ -4,7 +4,8 @@
 
 import socket
 import sys
-import numpy as np  
+import numpy as np 
+import time 
 
 # # Check if enough command-line arguments are provided
 # if len(sys.argv) != 3:
@@ -183,84 +184,87 @@ def handle_buyer(buyer_client):
                     break
                 
                 # Check for the complete auction finished message for both winners and losers
-                if "Auction finished!" in auction_result:
-                    print(auction_result)  # Print the auction result message
-                    # print("Exiting after auction finished message.")
-                    if "You won" in auction_result:
-                        seller_ip = buyer_client.recv(1024).decode()
-                        buyer_ip = buyer_client.getsockname()[0]
+                if "You won" in auction_result:
+                    seller_ip = buyer_client.recv(1024).decode()
+                    buyer_ip = buyer_client.getsockname()[0]
 
-                        print(f"Seller IP address is {seller_ip}")
+                    print(f"Seller IP address is {seller_ip}")
 
-                        # Step 1: Create UDP socket to receive file
-                        udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                        udp_socket.bind((buyer_ip, UDP_PORT))
-                        print("Winning Buyer is ready to receive data...")
+                    # Step 1: Create UDP socket to receive file
+                    udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    udp_socket.bind((buyer_ip, UDP_PORT))
+                    print("Winning Buyer is ready to receive data...")
 
-                        received_data = []
-                        expected_seq = 1
-                        received_size = 0  # Initialize received file size counter
-                        print("UDP socket opened for RDT.")  
-                        print("Start receiving file.")
+                    received_data = []
+                    expected_seq = 1
+                    received_size = 0  # Initialize received file size counter
+                    print("UDP socket opened for RDT.")  
+                    print("Start receiving file.")
 
-                        # Initialize last_ack_sent
-                        last_ack_sent = None
+                    # Initialize time tracking
+                    start_time = time.time()  # Record the start time of file transfer
 
-                        while True:
-                            data, addr = udp_socket.recvfrom(2048)
+                    while True:
+                        data, addr = udp_socket.recvfrom(2048)
+                        parts = data.decode(errors='ignore').split()
+                        if parts[0] == "fin":
+                            print("End of transmission received.")
+                            break
+                        # Simulate packet loss
+                        flag = np.random.binomial(n=1, p=PACKET_LOSS_RATE)
+                        if flag == 1:
+                            # Discard the message
+                            print("Packet lost, message discarded.")
+                            continue
 
-                            # Simulate packet loss
-                            flag = np.random.binomial(n=1, p=PACKET_LOSS_RATE)
-                            if flag == 1:
-                                # Discard the message
-                                print("Packet lost, message discarded.")
-                                continue
 
-                            parts = data.decode(errors='ignore').split()
-                            if parts[0] == "fin":
-                                print("End of transmission received.")
-                                break
 
-                            if len(parts) == 2 and parts[0] == '0':
-                                # First message, receiving control message with file length
-                                file_length = int(parts[1])  # Extract file length from the control message
-                                print(f"Msg received: 0")  # First message received with sequence 0
-                                print(f"Ack sent: 0")  # Send ACK for the first message
-                                udp_socket.sendto(f"0 ack".encode(), addr)
-                                expected_seq = 1
-                                last_ack_sent = 0
-                                continue
+                        if len(parts) == 2 and parts[0] == '0':
+                            # First message, receiving control message with file length
+                            file_length = int(parts[1])  # Extract file length from the control message
+                            print(f"Msg received: 0")  # First message received with sequence 0
+                            print(f"Ack sent: 0")  # Send ACK for the first message
+                            udp_socket.sendto(f"0 ack".encode(), addr)
+                            expected_seq = 1
+                            last_ack_sent = 0
+                            continue
 
-                            seq_num = int(parts[0])
-                            if seq_num == expected_seq:
-                                # Print received message sequence
-                                print(f"Msg received: {seq_num}")
-                                received_data.append(data[4:])
-                                received_size += len(data[4:])  # Update received file size
+                        seq_num = int(parts[0])
+                        if seq_num == expected_seq:
+                            # Print received message sequence
+                            print(f"Msg received: {seq_num}")
+                            received_data.append(data[4:])
+                            received_size += len(data[4:])  # Update received file size
 
-                                # Print ACK sent and current received file size
-                                print(f"Ack sent: {seq_num}")
-                                print(f"Received data seq {seq_num}: {received_size} / {file_length}") 
+                            # Print ACK sent and current received file size
+                            print(f"Ack sent: {seq_num}")
+                            print(f"Received data seq {seq_num}: {received_size} / {file_length}") 
 
-                                
-                                udp_socket.sendto(f"{seq_num} ack".encode(), addr)
-                                last_ack_sent = seq_num
-                                # expected_seq += 1
-                                # Toggle expected sequence between 0 and 1
-                                expected_seq = 1 - expected_seq
-                            else:
-                                # Print unexpected sequence information
-                                print(f"Unexpected sequence number {seq_num}, expected {expected_seq}. Ignored.")
-                                if last_ack_sent is not None:
-                                    print("here")
-                                    udp_socket.sendto(f"{last_ack_sent} ack".encode(), addr)
-                                # udp_socket.sendto(f"{1 - expected_seq} ack".encode(), addr)
+                            udp_socket.sendto(f"{seq_num} ack".encode(), addr)
+                            last_ack_sent = seq_num
+                            expected_seq = 1 - expected_seq  # Toggle expected sequence between 0 and 1
+                        else:
+                            # Print unexpected sequence information
+                            print(f"Unexpected sequence number {seq_num}, expected {expected_seq}. Ignored.")
+                            if last_ack_sent is not None:
+                                udp_socket.sendto(f"{last_ack_sent} ack".encode(), addr)
 
-                        with open("recved.file", "wb") as file:
-                            file.write(b"".join(received_data))
-                        print("File received and saved as 'recved.file'.")
-                        udp_socket.close()
-                        break
+                    # Calculate and print time metrics after file transfer
+                    end_time = time.time()  # Record the end time of file transfer
+                    tct = end_time - start_time  # Total time taken (TCT) in seconds
+                    at = received_size / tct  # Average throughput (AT) in bytes/second
+
+                    # Save the received file
+                    with open("recved.file", "wb") as file:
+                        file.write(b"".join(received_data))
+                    
+                    print("File received and saved as 'recved.file'.")
+                    print(f"Total Bytes Received: {received_size} bytes")
+                    print(f"Time Taken to Receive All Bytes (TCT): {tct:.2f} seconds")
+                    print(f"Average Throughput (AT): {at:.2f} bytes/second")
+                    
+                    udp_socket.close()
+                    break
                     break  # Exit the loop after receiving the auction results
 
         elif "Bidding on-going" in role_message:
