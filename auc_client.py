@@ -130,7 +130,7 @@ def handle_seller(seller_client):
             break
             
 
-    # seller_client.close()
+    seller_client.close()
 
 def check_bid_status(buyer_client, msg):
     if msg == "Server: Invalid bid. Please submit a positive integer!":
@@ -198,10 +198,13 @@ def handle_buyer(buyer_client):
                         print("Winning Buyer is ready to receive data...")
 
                         received_data = []
-                        expected_seq = 0
+                        expected_seq = 1
                         received_size = 0  # Initialize received file size counter
                         print("UDP socket opened for RDT.")  
                         print("Start receiving file.")
+
+                        # Initialize last_ack_sent
+                        last_ack_sent = None
 
                         while True:
                             data, addr = udp_socket.recvfrom(2048)
@@ -225,6 +228,7 @@ def handle_buyer(buyer_client):
                                 print(f"Ack sent: 0")  # Send ACK for the first message
                                 udp_socket.sendto(f"0 ack".encode(), addr)
                                 expected_seq = 1
+                                last_ack_sent = 0
                                 continue
 
                             seq_num = int(parts[0])
@@ -240,12 +244,17 @@ def handle_buyer(buyer_client):
 
                                 
                                 udp_socket.sendto(f"{seq_num} ack".encode(), addr)
+                                last_ack_sent = seq_num
                                 # expected_seq += 1
                                 # Toggle expected sequence between 0 and 1
                                 expected_seq = 1 - expected_seq
                             else:
                                 # Print unexpected sequence information
                                 print(f"Unexpected sequence number {seq_num}, expected {expected_seq}. Ignored.")
+                                if last_ack_sent is not None:
+                                    print("here")
+                                    udp_socket.sendto(f"{last_ack_sent} ack".encode(), addr)
+                                # udp_socket.sendto(f"{1 - expected_seq} ack".encode(), addr)
 
                         with open("recved.file", "wb") as file:
                             file.write(b"".join(received_data))
@@ -260,8 +269,8 @@ def handle_buyer(buyer_client):
             break
 
     # Ensure to close the buyer_client at the end if it wasn't closed earlier
-    # if buyer_client:
-    #     buyer_client.close()
+    if buyer_client:
+        buyer_client.close()
 
 
 if __name__ == "__main__":
