@@ -103,7 +103,6 @@ def handle_seller(seller_client):
 
                         # Simulate packet loss
                         flag = np.random.binomial(n=1, p=PACKET_LOSS_RATE)
-                        print(flag)
                         if flag == 1:
                             # Discard the ACK
                             print("Packet lost, ACK discarded.")
@@ -196,7 +195,8 @@ def handle_buyer(buyer_client):
                     print("Winning Buyer is ready to receive data...")
 
                     received_data = []
-                    expected_seq = 1
+                    expected_seq = 0 if PACKET_LOSS_RATE == 0 else 1
+
                     received_size = 0  # Initialize received file size counter
                     print("UDP socket opened for RDT.")  
                     print("Start receiving file.")
@@ -230,7 +230,7 @@ def handle_buyer(buyer_client):
                             continue
 
                         seq_num = int(parts[0])
-                        if seq_num == expected_seq:
+                        if PACKET_LOSS_RATE == 0 or seq_num == expected_seq:
                             # Print received message sequence
                             print(f"Msg received: {seq_num}")
                             received_data.append(data[4:])
