@@ -80,7 +80,12 @@ def handle_seller(seller_client):
                 # Wait for ACK
                 udp_socket.settimeout(2)
                 try:
-                    ack, _ = udp_socket.recvfrom(1024)
+                    ack, addr = udp_socket.recvfrom(1024)
+
+                    #Check if the message comes from the expected IP address
+                    if addr[0] != winner_ip:
+                            print(f"Received ACK from unexpected IP {addr[0]}, expected {winner_ip}. Discarding ACK.")
+                            continue
 
                     # Simulate packet loss on ACKs
                     ack_loss_flag = np.random.binomial(n=1, p=PACKET_LOSS_RATE)
@@ -121,7 +126,12 @@ def handle_seller(seller_client):
                     # Wait for ACK
                     udp_socket.settimeout(2)
                     try:
-                        ack, _ = udp_socket.recvfrom(1024)
+                        ack, addr = udp_socket.recvfrom(1024)
+
+                        #Check if the message comes from the expected IP address
+                        if addr[0] != winner_ip:
+                            print(f"Received ACK from unexpected IP {addr[0]}, expected {winner_ip}. Discarding ACK.")
+                            continue
 
                         # Simulate packet loss on ACKs
                         ack_loss_flag = np.random.binomial(n=1, p=PACKET_LOSS_RATE)
@@ -228,6 +238,11 @@ def handle_buyer(buyer_client):
 
                     while True:
                         data, addr = udp_socket.recvfrom(2048)
+
+                        #Check if the message comes from the expected IP address
+                        if addr[0] != seller_ip:
+                            print(f"Received message from unexpected IP {addr[0]}, expected {seller_ip}. Discarding message.")
+                            continue
                         parts = data.decode(errors='ignore').split()
                         if len(parts) >= 2 and parts[1] == "fin":
                             print(f"Transmission finished.")
