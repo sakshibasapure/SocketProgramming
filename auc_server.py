@@ -173,10 +173,10 @@ def process_bids(bids_received):
         
         if auction_type == 1:  # First-price auction
             actual_payment = highest_bid
-            print(f"Item sold! The highest bid is {highest_bid}. The actual payment is {actual_payment}.")
+            print(f"Item sold! The highest bid is ${highest_bid}. The actual payment is ${actual_payment}.")
         elif auction_type == 2:  # Second-price auction
             actual_payment = second_highest_bid
-            print(f"Item sold! The highest bid is {highest_bid}. The actual payment is {actual_payment}.")
+            print(f"Item sold! The highest bid is ${highest_bid}. The actual payment is ${actual_payment}.")
         
         item_name = seller_data.get("item_name")
         sellerIP = seller_data.get("seller_IP")
@@ -210,7 +210,7 @@ def notify_winner(winning_buyer, item_name, actual_payment,sellerIP):
     message = (
         f"Auction finished!\n"
         f"You won this item: {item_name}!\n"
-        f"Your payment due is {actual_payment}.\n"
+        f"Your payment due is ${actual_payment}.\n"
         f"Disconnecting from the Auctioneer server.\n"
         f"Auction is over!"
     )
@@ -231,7 +231,7 @@ def notify_seller(item_name, highest_bid,winnerIP):
     # Send notification to the seller with auction details
     message = (
         f"Auction finished!\n"
-        f"Success! Your item {item_name} has been sold for {highest_bid}.\n"
+        f"Success! Your item {item_name} has been sold for ${highest_bid}.\n"
         f"Disconnecting from the Auctioneer server. Auction is over!"
     )
     
