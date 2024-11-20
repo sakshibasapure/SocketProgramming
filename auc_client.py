@@ -106,7 +106,8 @@ def handle_seller(seller_client):
                         flag = np.random.binomial(n=1, p=PACKET_LOSS_RATE)
                         if flag == 1:
                             # Discard the ACK
-                            print("Packet lost, ACK discarded.")
+                            print(f"ACK dropped: {seq_num}")
+                            print(f"Msg re-sent: {seq_num}")
                             continue  # Wait for the next ACK or timeout
 
                         ack_num = int(ack.decode().split()[0])
@@ -208,13 +209,12 @@ def handle_buyer(buyer_client):
                         data, addr = udp_socket.recvfrom(2048)
                         parts = data.decode(errors='ignore').split()
                         if parts[0] == "fin":
-                            print("End of transmission received.")
                             break
                         # Simulate packet loss
                         flag = np.random.binomial(n=1, p=PACKET_LOSS_RATE)
                         if flag == 1:
                             # Discard the message
-                            print("Packet lost, message discarded.")
+                            print(f"Pkt dropped: {seq_num}")
                             
 
 
@@ -244,10 +244,14 @@ def handle_buyer(buyer_client):
                             last_ack_sent = seq_num
                             expected_seq = 1 - expected_seq  # Toggle expected sequence between 0 and 1
                         else:
-                            # Print unexpected sequence information
-                            print(f"Msg received with mismatched sequence number {seq_num}. Expecting {expected_seq}.")
+                            if PACKET_LOSS_RATE > 0.0:
+                                # Print unexpected sequence information
+                                print(f"Msg received with mismatched sequence number {seq_num}. Expecting {expected_seq}.")
+                            
                             if last_ack_sent is not None:
                                 udp_socket.sendto(f"{last_ack_sent} ack".encode(), addr)
+                                if PACKET_LOSS_RATE > 0.0:
+                                    print(f"Ack re-sent: {last_ack_sent}")
 
                     # Calculate and print time metrics after file transfer
                     end_time = time.time()  # Record the end time of file transfer
@@ -258,14 +262,11 @@ def handle_buyer(buyer_client):
                     with open("recved.file", "wb") as file:
                         file.write(b"".join(received_data))
                     
-                    print("File received and saved as 'recved.file'.")
-                    print(f"Total Bytes Received: {received_size} bytes")
-                    print(f"Time Taken to Receive All Bytes (TCT): {tct:.2f} seconds")
-                    print(f"Average Throughput (AT): {at:.2f} bytes/second")
+                    print(f"Transmission Finished: {received_size} bytes / {tct:.2f} seconds = {at:.2f} bps")
+                    
                     
                     udp_socket.close()
                     break
-                    break  # Exit the loop after receiving the auction results
 
         elif "Bidding on-going" in role_message:
             print("Bidding is already in progress. You cannot join this auction.")
