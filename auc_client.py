@@ -109,7 +109,7 @@ def handle_seller(seller_client):
                             print(f"ACK dropped: {seq_num}")
                             print(f"Msg re-sent: {seq_num}")
                             continue  # Wait for the next ACK or timeout
-
+                        
                         ack_num = int(ack.decode().split()[0])
                         if ack_num == seq_num:
                             # print(f"Received ACK for chunk {seq_num}")
@@ -210,6 +210,8 @@ def handle_buyer(buyer_client):
                         parts = data.decode(errors='ignore').split()
                         if parts[0] == "fin":
                             break
+
+                        seq_num = int(parts[0])
                         # Simulate packet loss
                         flag = np.random.binomial(n=1, p=PACKET_LOSS_RATE)
                         if flag == 1:
