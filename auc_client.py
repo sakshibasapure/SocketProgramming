@@ -86,16 +86,17 @@ def handle_seller(seller_client):
 
             for i in range(total_chunks):
                 start = i * chunk_size
-                end = start + chunk_size
+                if start + chunk_size > file_length:
+                    end = file_length
+                else:
+                    end = start + chunk_size
                 chunk = file_data[start:end]
-
+                print(f"Sending data seq {seq_num}: {end} / {file_length}")
                 while True:
                     # Send chunk with sequence number
                     message = f"{seq_num} 1 ".encode() + chunk
                     udp_socket.sendto(message, (winner_ip, UDP_PORT))
-                    # Display message similar to the image you provided
-                    print(f"Sending data seq {seq_num}: {start} / {file_length}")
-
+                        
                     # Wait for ACK
                     udp_socket.settimeout(2)
                     try:
@@ -103,7 +104,6 @@ def handle_seller(seller_client):
 
                         # Simulate packet loss
                         flag = np.random.binomial(n=1, p=PACKET_LOSS_RATE)
-                        print(flag)
                         if flag == 1:
                             # Discard the ACK
                             print("Packet lost, ACK discarded.")
@@ -215,7 +215,7 @@ def handle_buyer(buyer_client):
                         if flag == 1:
                             # Discard the message
                             print("Packet lost, message discarded.")
-                            continue
+                            
 
 
 
@@ -245,7 +245,7 @@ def handle_buyer(buyer_client):
                             expected_seq = 1 - expected_seq  # Toggle expected sequence between 0 and 1
                         else:
                             # Print unexpected sequence information
-                            print(f"Unexpected sequence number {seq_num}, expected {expected_seq}. Ignored.")
+                            print(f"Msg received with mismatched sequence number {seq_num}. Expecting {expected_seq}.")
                             if last_ack_sent is not None:
                                 udp_socket.sendto(f"{last_ack_sent} ack".encode(), addr)
 
